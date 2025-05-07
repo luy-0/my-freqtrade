@@ -42,3 +42,21 @@ docker exec 8f84e7999aa3 freqtrade download-data --exchange binance --pairs BTC/
 ### 简单策略编写
 
 测试环节下, 策略位于 ft_userdata/user_data/strategies 中
+
+## 简单回测数据
+
+链接: https://www.freqtrade.io/en/stable/backtesting/
+
+```
+freqtrade backtesting --strategy SampleStrategy --dry-run-wallet 1000 --data-format-ohlcv json --timeframe 5m
+```
+
+需要使用 静态的配对列表(StaticPairList 这是什么?) 总之不这么设置无法运行, 会提示 `ERROR - VolumePairList not allowed for backtesting.` 需要在 config 中的 `exchange.pair_whitelist` 中设置, 以及 `pairlists` 中更改 `method`.
+
+## 回测数据处理
+
+回测后的数据位于 ft_userdata/user_data/backtest_results 下. 回测结果以 zip 格式打包. 需要进一步处理或者绘图.
+
+```
+freqtrade plot-dataframe --strategy SampleStrategy --export-filename ft_userdata/user_data/backtest_results/backtest-result-2025-05-06_08-39-16.meta.json -p BTC/USDT
+```
