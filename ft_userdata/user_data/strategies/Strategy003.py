@@ -8,16 +8,17 @@ from pandas import DataFrame
 
 import talib.abstract as ta
 import freqtrade.vendor.qtpylib.indicators as qtpylib
+import numpy # noqa
 
 
-class Strategy001(IStrategy):
+class Strategy003(IStrategy):
     """
-    Strategy 001
+    Strategy 003
     author@: Gerald Lonlas
     github@: https://github.com/freqtrade/freqtrade-strategies
 
     How to use it?
-    > python3 ./freqtrade/main.py -s Strategy001
+    > python3 ./freqtrade/main.py -s Strategy003
     """
 
     INTERFACE_VERSION: int = 3
@@ -32,7 +33,7 @@ class Strategy001(IStrategy):
 
     # Optimal stoploss designed for the strategy
     # This attribute will be overridden if the config file contains "stoploss"
-    stoploss = -0.02
+    stoploss = -0.10
 
     # Optimal timeframe for the strategy
     timeframe = '5m'
@@ -80,13 +81,36 @@ class Strategy001(IStrategy):
         or your hyperopt configuration, otherwise you will waste your memory and CPU usage.
         """
 
-        dataframe['ema20'] = ta.EMA(dataframe, timeperiod=20)
+        # MFI
+        dataframe['mfi'] = ta.MFI(dataframe)
+
+        # Stoch fast
+        stoch_fast = ta.STOCHF(dataframe)
+        dataframe['fastd'] = stoch_fast['fastd']
+        dataframe['fastk'] = stoch_fast['fastk']
+
+        # RSI
+        dataframe['rsi'] = ta.RSI(dataframe)
+
+        # Inverse Fisher transform on RSI, values [-1.0, 1.0] (https://goo.gl/2JGGoy)
+        rsi = 0.1 * (dataframe['rsi'] - 50)
+        dataframe['fisher_rsi'] = (numpy.exp(2 * rsi) - 1) / (numpy.exp(2 * rsi) + 1)
+
+        # Bollinger bands
+        bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
+        dataframe['bb_lowerband'] = bollinger['lower']
+
+        # EMA - Exponential Moving Average
+        dataframe['ema5'] = ta.EMA(dataframe, timeperiod=5)
+        dataframe['ema10'] = ta.EMA(dataframe, timeperiod=10)
         dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
         dataframe['ema100'] = ta.EMA(dataframe, timeperiod=100)
 
-        heikinashi = qtpylib.heikinashi(dataframe)
-        dataframe['ha_open'] = heikinashi['open']
-        dataframe['ha_close'] = heikinashi['close']
+        # SAR Parabol
+        dataframe['sar'] = ta.SAR(dataframe)
+
+        # SMA - Simple Moving Average
+        dataframe['sma'] = ta.SMA(dataframe, timeperiod=40)
 
         return dataframe
 
@@ -98,9 +122,17 @@ class Strategy001(IStrategy):
         """
         dataframe.loc[
             (
-                qtpylib.crossed_above(dataframe['ema20'], dataframe['ema50']) &
-                (dataframe['ha_close'] > dataframe['ema20']) &
-                (dataframe['ha_open'] < dataframe['ha_close'])  # green bar
+                (dataframe['rsi'] < 28) &
+                (dataframe['rsi'] > 0) &
+                (dataframe['close'] < dataframe['sma']) &
+                (dataframe['fisher_rsi'] < -0.94) &
+                (dataframe['mfi'] < 16.0) &
+                (
+                    (dataframe['ema50'] > dataframe['ema100']) |
+                    (qtpylib.crossed_above(dataframe['ema5'], dataframe['ema10']))
+                ) &
+                (dataframe['fastd'] > dataframe['fastk']) &
+                (dataframe['fastd'] > 0)
             ),
             'enter_long'] = 1
 
@@ -114,9 +146,8 @@ class Strategy001(IStrategy):
         """
         dataframe.loc[
             (
-                qtpylib.crossed_above(dataframe['ema50'], dataframe['ema100']) &
-                (dataframe['ha_close'] < dataframe['ema20']) &
-                (dataframe['ha_open'] > dataframe['ha_close'])  # red bar
+                (dataframe['sar'] > dataframe['close']) &
+                (dataframe['fisher_rsi'] > 0.3)
             ),
             'exit_long'] = 1
         return dataframe

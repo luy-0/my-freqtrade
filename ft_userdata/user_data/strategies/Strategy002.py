@@ -8,16 +8,17 @@ from pandas import DataFrame
 
 import talib.abstract as ta
 import freqtrade.vendor.qtpylib.indicators as qtpylib
+import numpy # noqa
 
 
-class Strategy001(IStrategy):
+class Strategy002(IStrategy):
     """
-    Strategy 001
+    Strategy 002
     author@: Gerald Lonlas
     github@: https://github.com/freqtrade/freqtrade-strategies
 
     How to use it?
-    > python3 ./freqtrade/main.py -s Strategy001
+    > python3 ./freqtrade/main.py -s Strategy002
     """
 
     INTERFACE_VERSION: int = 3
@@ -80,13 +81,26 @@ class Strategy001(IStrategy):
         or your hyperopt configuration, otherwise you will waste your memory and CPU usage.
         """
 
-        dataframe['ema20'] = ta.EMA(dataframe, timeperiod=20)
-        dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
-        dataframe['ema100'] = ta.EMA(dataframe, timeperiod=100)
+        # Stoch
+        stoch = ta.STOCH(dataframe)
+        dataframe['slowk'] = stoch['slowk']
 
-        heikinashi = qtpylib.heikinashi(dataframe)
-        dataframe['ha_open'] = heikinashi['open']
-        dataframe['ha_close'] = heikinashi['close']
+        # RSI
+        dataframe['rsi'] = ta.RSI(dataframe)
+
+        # Inverse Fisher transform on RSI, values [-1.0, 1.0] (https://goo.gl/2JGGoy)
+        rsi = 0.1 * (dataframe['rsi'] - 50)
+        dataframe['fisher_rsi'] = (numpy.exp(2 * rsi) - 1) / (numpy.exp(2 * rsi) + 1)
+
+        # Bollinger bands
+        bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
+        dataframe['bb_lowerband'] = bollinger['lower']
+
+        # SAR Parabol
+        dataframe['sar'] = ta.SAR(dataframe)
+
+        # Hammer: values [0, 100]
+        dataframe['CDLHAMMER'] = ta.CDLHAMMER(dataframe)
 
         return dataframe
 
@@ -98,9 +112,10 @@ class Strategy001(IStrategy):
         """
         dataframe.loc[
             (
-                qtpylib.crossed_above(dataframe['ema20'], dataframe['ema50']) &
-                (dataframe['ha_close'] > dataframe['ema20']) &
-                (dataframe['ha_open'] < dataframe['ha_close'])  # green bar
+                (dataframe['rsi'] < 30) &
+                (dataframe['slowk'] < 20) &
+                (dataframe['bb_lowerband'] > dataframe['close']) &
+                (dataframe['CDLHAMMER'] == 100)
             ),
             'enter_long'] = 1
 
@@ -114,9 +129,8 @@ class Strategy001(IStrategy):
         """
         dataframe.loc[
             (
-                qtpylib.crossed_above(dataframe['ema50'], dataframe['ema100']) &
-                (dataframe['ha_close'] < dataframe['ema20']) &
-                (dataframe['ha_open'] > dataframe['ha_close'])  # red bar
+                (dataframe['sar'] > dataframe['close']) &
+                (dataframe['fisher_rsi'] > 0.3)
             ),
             'exit_long'] = 1
         return dataframe

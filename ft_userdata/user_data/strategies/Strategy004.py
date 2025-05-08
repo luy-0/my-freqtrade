@@ -7,17 +7,17 @@ from pandas import DataFrame
 # --------------------------------
 
 import talib.abstract as ta
-import freqtrade.vendor.qtpylib.indicators as qtpylib
 
 
-class Strategy001(IStrategy):
+class Strategy004(IStrategy):
+
     """
-    Strategy 001
+    Strategy 004
     author@: Gerald Lonlas
     github@: https://github.com/freqtrade/freqtrade-strategies
 
     How to use it?
-    > python3 ./freqtrade/main.py -s Strategy001
+    > python3 ./freqtrade/main.py -s Strategy004
     """
 
     INTERFACE_VERSION: int = 3
@@ -32,7 +32,7 @@ class Strategy001(IStrategy):
 
     # Optimal stoploss designed for the strategy
     # This attribute will be overridden if the config file contains "stoploss"
-    stoploss = -0.02
+    stoploss = -0.10
 
     # Optimal timeframe for the strategy
     timeframe = '5m'
@@ -80,13 +80,34 @@ class Strategy001(IStrategy):
         or your hyperopt configuration, otherwise you will waste your memory and CPU usage.
         """
 
-        dataframe['ema20'] = ta.EMA(dataframe, timeperiod=20)
-        dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
-        dataframe['ema100'] = ta.EMA(dataframe, timeperiod=100)
+        # ADX
+        dataframe['adx'] = ta.ADX(dataframe)
+        dataframe['slowadx'] = ta.ADX(dataframe, 35)
 
-        heikinashi = qtpylib.heikinashi(dataframe)
-        dataframe['ha_open'] = heikinashi['open']
-        dataframe['ha_close'] = heikinashi['close']
+        # Commodity Channel Index: values Oversold:<-100, Overbought:>100
+        dataframe['cci'] = ta.CCI(dataframe)
+
+        # Stoch
+        stoch = ta.STOCHF(dataframe, 5)
+        dataframe['fastd'] = stoch['fastd']
+        dataframe['fastk'] = stoch['fastk']
+        dataframe['fastk-previous'] = dataframe.fastk.shift(1)
+        dataframe['fastd-previous'] = dataframe.fastd.shift(1)
+
+        # Slow Stoch
+        slowstoch = ta.STOCHF(dataframe, 50)
+        dataframe['slowfastd'] = slowstoch['fastd']
+        dataframe['slowfastk'] = slowstoch['fastk']
+        dataframe['slowfastk-previous'] = dataframe.slowfastk.shift(1)
+        dataframe['slowfastd-previous'] = dataframe.slowfastd.shift(1)
+
+        # EMA - Exponential Moving Average
+        dataframe['ema5'] = ta.EMA(dataframe, timeperiod=5)
+        
+        # get the rolling volume mean for the last hour (12x5)
+        # Note: dataframe['volume'].mean() uses the whole dataframe in 
+        # backtesting hence will have lookahead, but would be fine for dry/live use
+        dataframe['mean-volume'] = dataframe['volume'].rolling(12).mean()
 
         return dataframe
 
@@ -98,9 +119,23 @@ class Strategy001(IStrategy):
         """
         dataframe.loc[
             (
-                qtpylib.crossed_above(dataframe['ema20'], dataframe['ema50']) &
-                (dataframe['ha_close'] > dataframe['ema20']) &
-                (dataframe['ha_open'] < dataframe['ha_close'])  # green bar
+                (
+                    (dataframe['adx'] > 50) |
+                    (dataframe['slowadx'] > 26)
+                ) &
+                (dataframe['cci'] < -100) &
+                (
+                    (dataframe['fastk-previous'] < 20) &
+                    (dataframe['fastd-previous'] < 20)
+                ) &
+                (
+                    (dataframe['slowfastk-previous'] < 30) &
+                    (dataframe['slowfastd-previous'] < 30)
+                ) &
+                (dataframe['fastk-previous'] < dataframe['fastd-previous']) &
+                (dataframe['fastk'] > dataframe['fastd']) &
+                (dataframe['mean-volume'] > 0.75) &
+                (dataframe['close'] > 0.00000100)
             ),
             'enter_long'] = 1
 
@@ -114,9 +149,10 @@ class Strategy001(IStrategy):
         """
         dataframe.loc[
             (
-                qtpylib.crossed_above(dataframe['ema50'], dataframe['ema100']) &
-                (dataframe['ha_close'] < dataframe['ema20']) &
-                (dataframe['ha_open'] > dataframe['ha_close'])  # red bar
+                (dataframe['slowadx'] < 25) &
+                ((dataframe['fastk'] > 70) | (dataframe['fastd'] > 70)) &
+                (dataframe['fastk-previous'] < dataframe['fastd-previous']) &
+                (dataframe['close'] > dataframe['ema5'])
             ),
             'exit_long'] = 1
         return dataframe

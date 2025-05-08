@@ -11,6 +11,7 @@ which you are afraid to lose. USE THE SOFTWARE AT YOUR OWN RISK. THE
 AUTHORS AND ALL AFFILIATES ASSUME NO RESPONSIBILITY FOR YOUR TRADING 
 RESULTS. 
 
+
 Always start by testing strategies with a backtesting then run the 
 trading bot in Dry-run. Do not engage money before you understand how 
 it works and what profit/loss you should expect.
@@ -19,16 +20,21 @@ We strongly recommend you to have coding and Python knowledge. Do not
 hesitate to read the source code and understand the mechanism of this 
 bot.
 
+
 ## Table of Content
 
-- [Free trading strategies](#free-trading-strategies)
-- [Contribute](#share-your-own-strategies-and-contribute-to-this-repo)
-- [FAQ](#faq)
+- [Freqtrade strategies](#freqtrade-strategies)
+  - [Disclaimer](#disclaimer)
+  - [Table of Content](#table-of-content)
+  - [Free trading strategies](#free-trading-strategies)
+  - [Share your own strategies and contribute to this repo](#share-your-own-strategies-and-contribute-to-this-repo)
+  - [FAQ](#faq)
     - [What is Freqtrade?](#what-is-freqtrade)
     - [What includes these strategies?](#what-includes-these-strategies)
     - [How to install a strategy?](#how-to-install-a-strategy)
     - [How to test a strategy?](#how-to-test-a-strategy)
-    - [How to create/optimize a strategy?](https://www.freqtrade.io/en/latest/strategy-customization/)
+      - [Simple backtesting](#simple-backtesting)
+      - [Refresh your test data](#refresh-your-test-data)
 
 ## Free trading strategies
 
